@@ -54,6 +54,12 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
     /// @dev Per-checkpoint redemptions: address => checkpointId => has redeemed.
     mapping(address => mapping(bytes32 => bool)) private _checkpointRedemptions;
 
+    /// @dev Tag name => checkpoint ID.
+    mapping(string => bytes32) private _tags;
+
+    /// @dev Checkpoint ID => tag name.
+    mapping(bytes32 => string) private _checkpointTags;
+
     // -----------------------------------------------------------------------
     //  Modifiers
     // -----------------------------------------------------------------------
@@ -161,7 +167,8 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
         bytes32 stateCommitment,
         bytes32 ciphertextHash,
         string calldata ciphertextUri,
-        bytes32 manifestHash
+        bytes32 manifestHash,
+        string calldata label
     ) external override onlyPublisher returns (bytes32 checkpointId) {
         // Cache the current head as predecessor before any mutations
         bytes32 predecessorId = _head;
@@ -212,6 +219,61 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
             uint64(block.timestamp),
             uint64(block.number)
         );
+
+        // Auto-tag if label is non-empty
+        if (bytes(label).length > 0) {
+            _setTag(checkpointId, label);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    //  Tags
+    // -----------------------------------------------------------------------
+
+    /// @inheritdoc IMindstate
+    function tagCheckpoint(bytes32 checkpointId, string calldata tag) external override onlyPublisher {
+        require(
+            _checkpoints[checkpointId].publishedAt != 0,
+            "Mindstate: checkpoint does not exist"
+        );
+        require(bytes(tag).length > 0, "Mindstate: tag must not be empty");
+
+        _setTag(checkpointId, tag);
+    }
+
+    /// @inheritdoc IMindstate
+    function resolveTag(string calldata tag) external view override returns (bytes32) {
+        return _tags[tag];
+    }
+
+    /// @inheritdoc IMindstate
+    function getCheckpointTag(bytes32 checkpointId) external view override returns (string memory) {
+        return _checkpointTags[checkpointId];
+    }
+
+    /**
+     * @dev Internal helper to assign a tag to a checkpoint.
+     *      Handles clearing the old tag if the checkpoint already had one,
+     *      and clearing the old checkpoint if the tag was previously assigned elsewhere.
+     */
+    function _setTag(bytes32 checkpointId, string memory tag) internal {
+        // If this tag was previously assigned to another checkpoint, clear the reverse lookup
+        bytes32 oldCheckpoint = _tags[tag];
+        if (oldCheckpoint != bytes32(0)) {
+            delete _checkpointTags[oldCheckpoint];
+        }
+
+        // If this checkpoint previously had a different tag, clear the forward lookup
+        string memory oldTag = _checkpointTags[checkpointId];
+        if (bytes(oldTag).length > 0) {
+            delete _tags[oldTag];
+        }
+
+        // Set both directions
+        _tags[tag] = checkpointId;
+        _checkpointTags[checkpointId] = tag;
+
+        emit CheckpointTagged(checkpointId, tag);
     }
 
     // -----------------------------------------------------------------------

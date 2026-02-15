@@ -6,9 +6,12 @@ solc = "0.8.24"
 optimizer = true
 optimizer_runs = 10000
 
+test = "test"
+
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/",
     "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "forge-std/=lib/openzeppelin-contracts-upgradeable/lib/forge-std/src/",
 ]
 
 [fmt]

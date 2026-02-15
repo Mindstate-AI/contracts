@@ -67,6 +67,12 @@ interface IMindstate {
         uint256 cost
     );
 
+    /// @notice Emitted when the publisher assigns or reassigns a tag to a checkpoint.
+    event CheckpointTagged(
+        bytes32 indexed checkpointId,
+        string  tag
+    );
+
     /// @notice Emitted when an address registers or rotates its encryption public key.
     event EncryptionKeyRegistered(
         address indexed account,
@@ -119,17 +125,42 @@ interface IMindstate {
     ///         context: keccak256(predecessorId, stateCommitment, ciphertextHash,
     ///         manifestHash, block.timestamp, block.number).
     ///
+    ///         If `label` is non-empty, the checkpoint is automatically tagged with
+    ///         that label (equivalent to calling tagCheckpoint after publishing).
+    ///
     /// @param stateCommitment Hash of the canonical plaintext capsule (binds structure).
     /// @param ciphertextHash  Hash of the encrypted capsule bytes (binds ciphertext).
     /// @param ciphertextUri   Content address where the ciphertext is stored (e.g. IPFS CID).
     /// @param manifestHash    Hash of the execution manifest (separately verifiable).
+    /// @param label           Optional short tag (e.g. "stable", "v2.0"). Pass "" to skip.
     /// @return checkpointId   The content-derived identifier of the new checkpoint.
     function publish(
         bytes32 stateCommitment,
         bytes32 ciphertextHash,
         string calldata ciphertextUri,
-        bytes32 manifestHash
+        bytes32 manifestHash,
+        string calldata label
     ) external returns (bytes32 checkpointId);
+
+    // -----------------------------------------------------------------------
+    //  Tags
+    // -----------------------------------------------------------------------
+
+    /// @notice Assigns or reassigns a tag to a checkpoint. Only callable by the publisher.
+    ///         Tags are mutable — the publisher can move a tag (e.g. "stable") to a
+    ///         different checkpoint at any time.
+    /// @param checkpointId The checkpoint to tag. Must exist.
+    /// @param tag          The tag string (e.g. "stable", "v2.0").
+    function tagCheckpoint(bytes32 checkpointId, string calldata tag) external;
+
+    /// @notice Resolves a tag to the checkpoint ID it currently points to.
+    ///         Returns bytes32(0) if the tag has not been assigned.
+    /// @param tag The tag to resolve.
+    function resolveTag(string calldata tag) external view returns (bytes32);
+
+    /// @notice Returns the tag assigned to a checkpoint, or "" if none.
+    /// @param checkpointId The checkpoint to look up.
+    function getCheckpointTag(bytes32 checkpointId) external view returns (string memory);
 
     // -----------------------------------------------------------------------
     //  Redemption (Burn-to-Access)
