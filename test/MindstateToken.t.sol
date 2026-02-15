@@ -435,7 +435,7 @@ contract MindstateTokenTest is Test {
 
     function test_factoryCreateDeterministic() public {
         bytes32 salt = keccak256("test-salt");
-        address predicted = factory.predictDeterministicAddress(salt);
+        address predicted = factory.predictDeterministicAddress(salt, publisher);
 
         vm.prank(publisher);
         address actual = factory.createDeterministic(

@@ -110,7 +110,9 @@ contract MindstateFactory {
         IMindstate.RedeemMode redeemMode,
         bytes32 salt
     ) external returns (address token) {
-        token = IMPLEMENTATION.cloneDeterministic(salt);
+        // Bind salt to msg.sender to prevent front-running
+        bytes32 boundSalt = keccak256(abi.encodePacked(msg.sender, salt));
+        token = IMPLEMENTATION.cloneDeterministic(boundSalt);
         MindstateToken(token).initialize(
             msg.sender, name, symbol, totalSupply, redeemCost, redeemMode
         );
@@ -126,8 +128,9 @@ contract MindstateFactory {
      * @param salt The salt that will be used for createDeterministic.
      * @return predicted The address the clone would be deployed to.
      */
-    function predictDeterministicAddress(bytes32 salt) external view returns (address predicted) {
-        return IMPLEMENTATION.predictDeterministicAddress(salt);
+    function predictDeterministicAddress(bytes32 salt, address deployer) external view returns (address predicted) {
+        bytes32 boundSalt = keccak256(abi.encodePacked(deployer, salt));
+        return IMPLEMENTATION.predictDeterministicAddress(boundSalt);
     }
 
     // -----------------------------------------------------------------------
@@ -145,7 +148,36 @@ contract MindstateFactory {
     }
 
     /// @notice Returns all tokens created by a specific publisher.
+    ///         For publishers with many tokens, use getPublisherTokensPaginated.
     function getPublisherTokens(address publisherAddr) external view returns (address[] memory) {
         return _publisherTokens[publisherAddr];
+    }
+
+    /// @notice Returns the number of tokens created by a specific publisher.
+    function getPublisherTokenCount(address publisherAddr) external view returns (uint256) {
+        return _publisherTokens[publisherAddr].length;
+    }
+
+    /// @notice Returns a paginated slice of tokens created by a specific publisher.
+    /// @param publisherAddr The publisher address.
+    /// @param offset        Starting index (0-based).
+    /// @param limit         Maximum number of tokens to return.
+    function getPublisherTokensPaginated(
+        address publisherAddr,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory) {
+        address[] storage all = _publisherTokens[publisherAddr];
+        if (offset >= all.length) return new address[](0);
+
+        uint256 end = offset + limit;
+        if (end > all.length) end = all.length;
+        uint256 count = end - offset;
+
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = all[offset + i];
+        }
+        return result;
     }
 }
