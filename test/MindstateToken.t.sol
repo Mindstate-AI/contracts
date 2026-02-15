@@ -144,6 +144,84 @@ contract MindstateTokenTest is Test {
     }
 
     // -----------------------------------------------------------------------
+    //  Storage Migration (updateCiphertextUri)
+    // -----------------------------------------------------------------------
+
+    function test_updateCiphertextUri() public {
+        bytes32 cpId = _publish("");
+
+        vm.prank(publisher);
+        token.updateCiphertextUri(cpId, "ar://newTxId123");
+
+        IMindstate.Checkpoint memory cp = token.getCheckpoint(cpId);
+        assertEq(keccak256(bytes(cp.ciphertextUri)), keccak256("ar://newTxId123"));
+    }
+
+    function test_updateCiphertextUriEmitsEvent() public {
+        bytes32 cpId = _publish("");
+
+        vm.prank(publisher);
+        vm.expectEmit(true, false, false, true);
+        emit IMindstate.CiphertextUriUpdated(cpId, "ipfs://QmTest1", "ar://newTxId123");
+        token.updateCiphertextUri(cpId, "ar://newTxId123");
+    }
+
+    function test_updateCiphertextUriPreservesCheckpointId() public {
+        bytes32 cpId = _publish("");
+
+        // Checkpoint ID should not change after URI update
+        vm.prank(publisher);
+        token.updateCiphertextUri(cpId, "ar://newTxId123");
+
+        // All other fields remain intact
+        IMindstate.Checkpoint memory cp = token.getCheckpoint(cpId);
+        assertEq(cp.stateCommitment, keccak256("state1"));
+        assertEq(cp.ciphertextHash, keccak256("cipher1"));
+        assertEq(cp.manifestHash, keccak256("manifest1"));
+        assertGt(cp.publishedAt, 0);
+    }
+
+    function test_nonPublisherCannotUpdateUri() public {
+        bytes32 cpId = _publish("");
+
+        vm.prank(outsider);
+        vm.expectRevert("Mindstate: caller is not the publisher");
+        token.updateCiphertextUri(cpId, "ar://hack");
+    }
+
+    function test_cannotUpdateUriOfNonexistentCheckpoint() public {
+        vm.prank(publisher);
+        vm.expectRevert("Mindstate: checkpoint does not exist");
+        token.updateCiphertextUri(keccak256("fake"), "ar://nope");
+    }
+
+    function test_cannotUpdateUriToEmpty() public {
+        bytes32 cpId = _publish("");
+
+        vm.prank(publisher);
+        vm.expectRevert("Mindstate: URI must not be empty");
+        token.updateCiphertextUri(cpId, "");
+    }
+
+    function test_updateCiphertextUriMultipleTimes() public {
+        bytes32 cpId = _publish("");
+
+        // IPFS → Filecoin
+        vm.prank(publisher);
+        token.updateCiphertextUri(cpId, "fil://bafyFilecoinCid");
+
+        IMindstate.Checkpoint memory cp1 = token.getCheckpoint(cpId);
+        assertEq(keccak256(bytes(cp1.ciphertextUri)), keccak256("fil://bafyFilecoinCid"));
+
+        // Filecoin → Arweave
+        vm.prank(publisher);
+        token.updateCiphertextUri(cpId, "ar://permanentTxId");
+
+        IMindstate.Checkpoint memory cp2 = token.getCheckpoint(cpId);
+        assertEq(keccak256(bytes(cp2.ciphertextUri)), keccak256("ar://permanentTxId"));
+    }
+
+    // -----------------------------------------------------------------------
     //  Tagging
     // -----------------------------------------------------------------------
 

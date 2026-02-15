@@ -36,7 +36,7 @@ interface IMindstate {
         bytes32 predecessorId;    // ID of the prior checkpoint (bytes32(0) for genesis)
         bytes32 stateCommitment;  // Hash of the canonical plaintext capsule
         bytes32 ciphertextHash;   // Hash of the encrypted capsule bytes
-        string  ciphertextUri;    // Content address of the ciphertext (e.g. IPFS CID)
+        string  ciphertextUri;    // Storage URI of the ciphertext (e.g. IPFS CID, ar:// txId, fil:// CID)
         bytes32 manifestHash;     // Hash of the execution manifest (separately addressable)
         uint64  publishedAt;      // block.timestamp when published
         uint64  blockNumber;      // block.number when published
@@ -71,6 +71,14 @@ interface IMindstate {
     event CheckpointTagged(
         bytes32 indexed checkpointId,
         string  tag
+    );
+
+    /// @notice Emitted when the publisher updates the ciphertext URI for a checkpoint
+    ///         (e.g. after migrating data between storage tiers).
+    event CiphertextUriUpdated(
+        bytes32 indexed checkpointId,
+        string  oldUri,
+        string  newUri
     );
 
     /// @notice Emitted when an address registers or rotates its encryption public key.
@@ -130,7 +138,7 @@ interface IMindstate {
     ///
     /// @param stateCommitment Hash of the canonical plaintext capsule (binds structure).
     /// @param ciphertextHash  Hash of the encrypted capsule bytes (binds ciphertext).
-    /// @param ciphertextUri   Content address where the ciphertext is stored (e.g. IPFS CID).
+    /// @param ciphertextUri   Storage URI where the ciphertext is stored (e.g. IPFS CID, ar://, fil://).
     /// @param manifestHash    Hash of the execution manifest (separately verifiable).
     /// @param label           Optional short tag (e.g. "stable", "v2.0"). Pass "" to skip.
     /// @return checkpointId   The content-derived identifier of the new checkpoint.
@@ -141,6 +149,22 @@ interface IMindstate {
         bytes32 manifestHash,
         string calldata label
     ) external returns (bytes32 checkpointId);
+
+    // -----------------------------------------------------------------------
+    //  Storage Migration
+    // -----------------------------------------------------------------------
+
+    /// @notice Updates the ciphertext URI for an existing checkpoint.
+    ///         Only callable by the publisher. Used when migrating data between
+    ///         storage backends (e.g. IPFS → Arweave) without re-publishing.
+    ///
+    ///         The checkpoint ID is NOT affected — it is derived from content
+    ///         hashes, not the storage URI. The ciphertextHash remains the
+    ///         integrity anchor regardless of where the data is stored.
+    ///
+    /// @param checkpointId   The checkpoint whose URI to update. Must exist.
+    /// @param newCiphertextUri The new storage URI (e.g. "ar://..." or "fil://...").
+    function updateCiphertextUri(bytes32 checkpointId, string calldata newCiphertextUri) external;
 
     // -----------------------------------------------------------------------
     //  Tags

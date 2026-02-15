@@ -227,6 +227,27 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
     }
 
     // -----------------------------------------------------------------------
+    //  Storage Migration
+    // -----------------------------------------------------------------------
+
+    /// @inheritdoc IMindstate
+    function updateCiphertextUri(
+        bytes32 checkpointId,
+        string calldata newCiphertextUri
+    ) external override onlyPublisher {
+        require(
+            _checkpoints[checkpointId].publishedAt != 0,
+            "Mindstate: checkpoint does not exist"
+        );
+        require(bytes(newCiphertextUri).length > 0, "Mindstate: URI must not be empty");
+
+        string memory oldUri = _checkpoints[checkpointId].ciphertextUri;
+        _checkpoints[checkpointId].ciphertextUri = newCiphertextUri;
+
+        emit CiphertextUriUpdated(checkpointId, oldUri, newCiphertextUri);
+    }
+
+    // -----------------------------------------------------------------------
     //  Tags
     // -----------------------------------------------------------------------
 
