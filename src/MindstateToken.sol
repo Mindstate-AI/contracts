@@ -11,8 +11,9 @@ import {IMindstate} from "./interfaces/IMindstate.sol";
  *
  *         Each instance represents a single capsule stream backed by an ERC-20 token.
  *         - The publisher has exclusive authority to append checkpoints.
- *         - Token balances represent access entitlement, not authorship.
- *         - The chain stores commitments and pointers. Secrets never go on-chain.
+ *         - Consumers burn tokens to redeem access (burn-to-redeem model).
+ *         - The chain stores commitments, pointers, and redemption records.
+ *           Secrets never go on-chain.
  *
  *         Designed for deployment via EIP-1167 minimal proxy clones (see MindstateFactory).
  *         Uses OpenZeppelin's Initializable + ERC20Upgradeable for the clone-compatible
@@ -26,8 +27,11 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
     /// @dev Address with exclusive publishing authority.
     address private _publisher;
 
-    /// @dev Minimum token balance required for consumption access.
-    uint256 private _minBalance;
+    /// @dev Redemption mode (packed with _publisher in the same storage slot).
+    RedeemMode private _redeemMode;
+
+    /// @dev Number of tokens burned per redemption.
+    uint256 private _redeemCost;
 
     /// @dev Content-derived ID of the most recent checkpoint.
     bytes32 private _head;
@@ -43,6 +47,12 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
 
     /// @dev address => registered X25519 encryption public key.
     mapping(address => bytes32) private _encryptionKeys;
+
+    /// @dev Universal redemptions: address => has redeemed universally.
+    mapping(address => bool) private _universalRedemptions;
+
+    /// @dev Per-checkpoint redemptions: address => checkpointId => has redeemed.
+    mapping(address => mapping(bytes32 => bool)) private _checkpointRedemptions;
 
     // -----------------------------------------------------------------------
     //  Modifiers
@@ -76,21 +86,24 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
      * @param name_        ERC-20 token name (e.g. "Agent Alpha Access").
      * @param symbol_      ERC-20 token symbol (e.g. "ALPHA").
      * @param totalSupply_ Total supply minted to the publisher.
-     * @param minBalance_  Minimum balance for consumption access.
+     * @param redeemCost_  Number of tokens burned per redemption.
+     * @param redeemMode_  Redemption mode: PerCheckpoint (0) or Universal (1).
      */
     function initialize(
         address publisher_,
         string calldata name_,
         string calldata symbol_,
         uint256 totalSupply_,
-        uint256 minBalance_
+        uint256 redeemCost_,
+        RedeemMode redeemMode_
     ) external initializer {
         require(publisher_ != address(0), "Mindstate: publisher is zero address");
 
         __ERC20_init(name_, symbol_);
 
         _publisher = publisher_;
-        _minBalance = minBalance_;
+        _redeemMode = redeemMode_;
+        _redeemCost = redeemCost_;
 
         if (totalSupply_ > 0) {
             _mint(publisher_, totalSupply_);
@@ -202,17 +215,52 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
     }
 
     // -----------------------------------------------------------------------
-    //  Access Control
+    //  Redemption (Burn-to-Access)
     // -----------------------------------------------------------------------
 
     /// @inheritdoc IMindstate
-    function minBalance() external view override returns (uint256) {
-        return _minBalance;
+    function redeemMode() external view override returns (RedeemMode) {
+        return _redeemMode;
     }
 
     /// @inheritdoc IMindstate
-    function hasAccess(address account) external view override returns (bool) {
-        return balanceOf(account) >= _minBalance;
+    function redeemCost() external view override returns (uint256) {
+        return _redeemCost;
+    }
+
+    /// @inheritdoc IMindstate
+    function redeem(bytes32 checkpointId) external override {
+        if (_redeemMode == RedeemMode.Universal) {
+            require(!_universalRedemptions[msg.sender], "Mindstate: already redeemed");
+
+            _burn(msg.sender, _redeemCost);
+            _universalRedemptions[msg.sender] = true;
+
+            emit Redeemed(msg.sender, bytes32(0), _redeemCost);
+        } else {
+            require(
+                _checkpoints[checkpointId].publishedAt != 0,
+                "Mindstate: checkpoint does not exist"
+            );
+            require(
+                !_checkpointRedemptions[msg.sender][checkpointId],
+                "Mindstate: already redeemed for this checkpoint"
+            );
+
+            _burn(msg.sender, _redeemCost);
+            _checkpointRedemptions[msg.sender][checkpointId] = true;
+
+            emit Redeemed(msg.sender, checkpointId, _redeemCost);
+        }
+    }
+
+    /// @inheritdoc IMindstate
+    function hasRedeemed(address account, bytes32 checkpointId) external view override returns (bool) {
+        if (_redeemMode == RedeemMode.Universal) {
+            return _universalRedemptions[account];
+        } else {
+            return _checkpointRedemptions[account][checkpointId];
+        }
     }
 
     // -----------------------------------------------------------------------

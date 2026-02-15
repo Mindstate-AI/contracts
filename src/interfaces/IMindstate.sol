@@ -4,18 +4,29 @@ pragma solidity ^0.8.24;
 /**
  * @title IMindstate
  * @notice Interface for the Mindstate token standard — encrypted AI state published as
- *         a verifiable, time-ordered checkpoint stream with ERC-20 access entitlement.
+ *         a verifiable, time-ordered checkpoint stream with ERC-20 burn-to-redeem access.
  *
  *         Each Mindstate deployment represents a single capsule stream. The publisher
  *         (which may be a human or an autonomous agent) has exclusive authority to
- *         append checkpoints. Token holders have no authority over content — they hold
- *         fungible access entitlement that determines who can request decryption keys
- *         off-chain.
+ *         append checkpoints. Token holders burn tokens to redeem access to checkpoints,
+ *         eliminating the ability to double-spend access entitlement.
  *
  *         The chain never sees secrets. It only sees commitments, pointers, and
- *         entitlements.
+ *         redemption records.
  */
 interface IMindstate {
+    // -----------------------------------------------------------------------
+    //  Enums
+    // -----------------------------------------------------------------------
+
+    /// @notice Determines how redemption grants access.
+    ///         - PerCheckpoint: each redeem() call burns tokens for ONE specific checkpoint.
+    ///         - Universal: one redeem() call burns tokens for access to ALL checkpoints.
+    enum RedeemMode {
+        PerCheckpoint,
+        Universal
+    }
+
     // -----------------------------------------------------------------------
     //  Structs
     // -----------------------------------------------------------------------
@@ -46,6 +57,14 @@ interface IMindstate {
         bytes32 manifestHash,
         uint64  timestamp,
         uint64  blockNumber
+    );
+
+    /// @notice Emitted when a consumer burns tokens to redeem access.
+    ///         In Universal mode, checkpointId is bytes32(0).
+    event Redeemed(
+        address indexed account,
+        bytes32 indexed checkpointId,
+        uint256 cost
     );
 
     /// @notice Emitted when an address registers or rotates its encryption public key.
@@ -113,15 +132,35 @@ interface IMindstate {
     ) external returns (bytes32 checkpointId);
 
     // -----------------------------------------------------------------------
-    //  Access Control
+    //  Redemption (Burn-to-Access)
     // -----------------------------------------------------------------------
 
-    /// @notice Returns the minimum token balance required for consumption access.
-    function minBalance() external view returns (uint256);
+    /// @notice Returns the redemption mode configured for this token.
+    function redeemMode() external view returns (RedeemMode);
 
-    /// @notice Returns true if the account holds at least minBalance tokens.
-    /// @param account The address to check.
-    function hasAccess(address account) external view returns (bool);
+    /// @notice Returns the number of tokens burned per redemption.
+    function redeemCost() external view returns (uint256);
+
+    /// @notice Burns redeemCost tokens from the caller and records a redemption.
+    ///
+    ///         In PerCheckpoint mode: grants access to the specified checkpoint only.
+    ///         The checkpoint must exist. Reverts if already redeemed for this checkpoint.
+    ///
+    ///         In Universal mode: grants access to ALL checkpoints (past and future).
+    ///         The checkpointId parameter is ignored. Reverts if already redeemed.
+    ///
+    /// @param checkpointId The checkpoint to redeem (ignored in Universal mode).
+    function redeem(bytes32 checkpointId) external;
+
+    /// @notice Returns true if the account has redeemed access to the given checkpoint.
+    ///
+    ///         In PerCheckpoint mode: checks the per-checkpoint redemption record.
+    ///         In Universal mode: checks if the account has universal redemption
+    ///         (checkpointId is ignored).
+    ///
+    /// @param account      The address to check.
+    /// @param checkpointId The checkpoint to check (ignored in Universal mode).
+    function hasRedeemed(address account, bytes32 checkpointId) external view returns (bool);
 
     // -----------------------------------------------------------------------
     //  Encryption Key Registry

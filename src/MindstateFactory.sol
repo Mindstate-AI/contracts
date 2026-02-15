@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {MindstateToken} from "./MindstateToken.sol";
+import {IMindstate} from "./interfaces/IMindstate.sol";
 
 /**
  * @title MindstateFactory
@@ -39,7 +40,8 @@ contract MindstateFactory {
         string  name,
         string  symbol,
         uint256 totalSupply,
-        uint256 minBalance
+        uint256 redeemCost,
+        IMindstate.RedeemMode redeemMode
     );
 
     // -----------------------------------------------------------------------
@@ -66,22 +68,26 @@ contract MindstateFactory {
      * @param name        ERC-20 token name (e.g. "Agent Alpha Access").
      * @param symbol      ERC-20 token symbol (e.g. "ALPHA").
      * @param totalSupply Total supply minted to the publisher (caller).
-     * @param minBalance  Minimum token balance for consumption access.
+     * @param redeemCost  Number of tokens burned per redemption.
+     * @param redeemMode  Redemption mode: PerCheckpoint (0) or Universal (1).
      * @return token      Address of the newly created Mindstate token.
      */
     function create(
         string calldata name,
         string calldata symbol,
         uint256 totalSupply,
-        uint256 minBalance
+        uint256 redeemCost,
+        IMindstate.RedeemMode redeemMode
     ) external returns (address token) {
         token = IMPLEMENTATION.clone();
-        MindstateToken(token).initialize(msg.sender, name, symbol, totalSupply, minBalance);
+        MindstateToken(token).initialize(
+            msg.sender, name, symbol, totalSupply, redeemCost, redeemMode
+        );
 
         _deployments.push(token);
         _publisherTokens[msg.sender].push(token);
 
-        emit MindstateCreated(token, msg.sender, name, symbol, totalSupply, minBalance);
+        emit MindstateCreated(token, msg.sender, name, symbol, totalSupply, redeemCost, redeemMode);
     }
 
     /**
@@ -91,7 +97,8 @@ contract MindstateFactory {
      * @param name        ERC-20 token name.
      * @param symbol      ERC-20 token symbol.
      * @param totalSupply Total supply minted to the publisher (caller).
-     * @param minBalance  Minimum token balance for consumption access.
+     * @param redeemCost  Number of tokens burned per redemption.
+     * @param redeemMode  Redemption mode: PerCheckpoint (0) or Universal (1).
      * @param salt        Salt for deterministic address derivation.
      * @return token      Address of the newly created Mindstate token.
      */
@@ -99,16 +106,19 @@ contract MindstateFactory {
         string calldata name,
         string calldata symbol,
         uint256 totalSupply,
-        uint256 minBalance,
+        uint256 redeemCost,
+        IMindstate.RedeemMode redeemMode,
         bytes32 salt
     ) external returns (address token) {
         token = IMPLEMENTATION.cloneDeterministic(salt);
-        MindstateToken(token).initialize(msg.sender, name, symbol, totalSupply, minBalance);
+        MindstateToken(token).initialize(
+            msg.sender, name, symbol, totalSupply, redeemCost, redeemMode
+        );
 
         _deployments.push(token);
         _publisherTokens[msg.sender].push(token);
 
-        emit MindstateCreated(token, msg.sender, name, symbol, totalSupply, minBalance);
+        emit MindstateCreated(token, msg.sender, name, symbol, totalSupply, redeemCost, redeemMode);
     }
 
     /**
