@@ -1,4 +1,4 @@
-![Mindstate](dithered-lassie.png)
+<img src="dithered-lassie.png" alt="Mindstate" width="400" />
 
 # Mindstate Contracts
 
