@@ -48,6 +48,14 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
     /// @dev address => registered X25519 encryption public key.
     mapping(address => bytes32) private _encryptionKeys;
 
+    /// @dev On-chain key envelope storage: consumer => checkpointId => envelope data.
+    struct StoredKeyEnvelope {
+        bytes   wrappedKey;       // K encrypted via NaCl box (~48 bytes)
+        bytes24 nonce;            // NaCl box nonce (24 bytes)
+        bytes32 senderPublicKey;  // Publisher's X25519 public key (32 bytes)
+    }
+    mapping(address => mapping(bytes32 => StoredKeyEnvelope)) private _keyEnvelopes;
+
     /// @dev Universal redemptions: address => has redeemed universally.
     mapping(address => bool) private _universalRedemptions;
 
@@ -69,7 +77,7 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
         _;
     }
 
-    function _checkPublisher() internal view {
+    function _checkPublisher() private view {
         require(msg.sender == _publisher, "Mindstate: caller is not the publisher");
     }
 
@@ -92,7 +100,8 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
      * @param name_        ERC-20 token name (e.g. "Agent Alpha Access").
      * @param symbol_      ERC-20 token symbol (e.g. "ALPHA").
      * @param totalSupply_ Total supply minted to the publisher.
-     * @param redeemCost_  Number of tokens burned per redemption.
+     * @param redeemCost_  Number of tokens burned per redemption. A value of 0 is
+     *                     valid and allows free redemption (no tokens burned).
      * @param redeemMode_  Redemption mode: PerCheckpoint (0) or Universal (1).
      */
     function initialize(
@@ -113,6 +122,44 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
 
         if (totalSupply_ > 0) {
             _mint(publisher_, totalSupply_);
+        }
+    }
+
+    /**
+     * @notice Initializes the Mindstate token for launchpad deployment.
+     *         Identical to initialize(), but mints supply to a specified recipient
+     *         (e.g. a virtual AMM hook) instead of the publisher. The publisher
+     *         retains exclusive checkpoint authority.
+     *
+     * @param publisher_   Address of the initial publisher (checkpoint authority).
+     * @param mintTo_      Address to receive the minted supply (e.g. hook address).
+     * @param name_        ERC-20 token name.
+     * @param symbol_      ERC-20 token symbol.
+     * @param totalSupply_ Total supply minted to mintTo_.
+     * @param redeemCost_  Number of tokens burned per redemption. A value of 0 is
+     *                     valid and allows free redemption (no tokens burned).
+     * @param redeemMode_  Redemption mode: PerCheckpoint (0) or Universal (1).
+     */
+    function initializeForLaunch(
+        address publisher_,
+        address mintTo_,
+        string calldata name_,
+        string calldata symbol_,
+        uint256 totalSupply_,
+        uint256 redeemCost_,
+        RedeemMode redeemMode_
+    ) external initializer {
+        require(publisher_ != address(0), "Mindstate: publisher is zero address");
+        require(mintTo_ != address(0), "Mindstate: mintTo is zero address");
+
+        __ERC20_init(name_, symbol_);
+
+        _publisher = publisher_;
+        _redeemMode = redeemMode_;
+        _redeemCost = redeemCost_;
+
+        if (totalSupply_ > 0) {
+            _mint(mintTo_, totalSupply_);
         }
     }
 
@@ -360,5 +407,68 @@ contract MindstateToken is Initializable, ERC20Upgradeable, IMindstate {
     /// @inheritdoc IMindstate
     function getEncryptionKey(address account) external view override returns (bytes32) {
         return _encryptionKeys[account];
+    }
+
+    // -----------------------------------------------------------------------
+    //  On-Chain Key Envelope Delivery
+    // -----------------------------------------------------------------------
+
+    /// @inheritdoc IMindstate
+    function deliverKeyEnvelope(
+        address consumer,
+        bytes32 checkpointId,
+        bytes calldata wrappedKey,
+        bytes24 nonce,
+        bytes32 senderPublicKey
+    ) external override onlyPublisher {
+        require(wrappedKey.length > 0, "Mindstate: empty wrapped key");
+        require(wrappedKey.length <= 128, "Mindstate: wrappedKey too large");
+        require(senderPublicKey != bytes32(0), "Mindstate: empty sender public key");
+        require(
+            _checkpoints[checkpointId].publishedAt != 0,
+            "Mindstate: checkpoint does not exist"
+        );
+        require(
+            _keyEnvelopes[consumer][checkpointId].wrappedKey.length == 0,
+            "Mindstate: key envelope already delivered"
+        );
+
+        // Verify consumer has redeemed access
+        if (_redeemMode == RedeemMode.Universal) {
+            require(
+                _universalRedemptions[consumer],
+                "Mindstate: consumer has not redeemed"
+            );
+        } else {
+            require(
+                _checkpointRedemptions[consumer][checkpointId],
+                "Mindstate: consumer has not redeemed this checkpoint"
+            );
+        }
+
+        _keyEnvelopes[consumer][checkpointId] = StoredKeyEnvelope({
+            wrappedKey: wrappedKey,
+            nonce: nonce,
+            senderPublicKey: senderPublicKey
+        });
+
+        emit KeyEnvelopeDelivered(consumer, checkpointId, wrappedKey, nonce, senderPublicKey);
+    }
+
+    /// @inheritdoc IMindstate
+    function getKeyEnvelope(
+        address consumer,
+        bytes32 checkpointId
+    ) external view override returns (bytes memory wrappedKey, bytes24 nonce, bytes32 senderPublicKey) {
+        StoredKeyEnvelope storage env = _keyEnvelopes[consumer][checkpointId];
+        return (env.wrappedKey, env.nonce, env.senderPublicKey);
+    }
+
+    /// @inheritdoc IMindstate
+    function hasKeyEnvelope(
+        address consumer,
+        bytes32 checkpointId
+    ) external view override returns (bool) {
+        return _keyEnvelopes[consumer][checkpointId].wrappedKey.length > 0;
     }
 }

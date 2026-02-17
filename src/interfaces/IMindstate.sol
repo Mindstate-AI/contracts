@@ -87,6 +87,16 @@ interface IMindstate {
         bytes32 encryptionKey
     );
 
+    /// @notice Emitted when the publisher delivers a key envelope on-chain.
+    ///         Consumers can scan for this event by their address and checkpoint ID.
+    event KeyEnvelopeDelivered(
+        address indexed consumer,
+        bytes32 indexed checkpointId,
+        bytes   wrappedKey,
+        bytes24 nonce,
+        bytes32 senderPublicKey
+    );
+
     /// @notice Emitted when publisher authority is transferred.
     event PublisherTransferred(
         address indexed previousPublisher,
@@ -231,4 +241,51 @@ interface IMindstate {
     ///         Returns bytes32(0) if no key has been registered.
     /// @param account The address to look up.
     function getEncryptionKey(address account) external view returns (bytes32);
+
+    // -----------------------------------------------------------------------
+    //  On-Chain Key Envelope Delivery (Optional)
+    // -----------------------------------------------------------------------
+
+    /// @notice Delivers a key envelope on-chain for a redeemed consumer.
+    ///         Only callable by the publisher. The consumer must have redeemed
+    ///         access to the specified checkpoint (or hold universal redemption).
+    ///
+    ///         This is an OPTIONAL alternative to off-chain key delivery via
+    ///         IPFS/Arweave. The envelope is emitted as an event and stored in
+    ///         contract state for direct retrieval.
+    ///
+    ///         The envelope contains K encrypted via NaCl box (X25519 +
+    ///         XSalsa20-Poly1305). It is safe to store on-chain — only the
+    ///         consumer holding the matching X25519 private key can unwrap it.
+    ///
+    /// @param consumer        The consumer's Ethereum address.
+    /// @param checkpointId    The checkpoint the key unlocks.
+    /// @param wrappedKey      K encrypted via NaCl box (~48 bytes).
+    /// @param nonce           24-byte NaCl box nonce.
+    /// @param senderPublicKey Publisher's 32-byte X25519 public key.
+    function deliverKeyEnvelope(
+        address consumer,
+        bytes32 checkpointId,
+        bytes calldata wrappedKey,
+        bytes24 nonce,
+        bytes32 senderPublicKey
+    ) external;
+
+    /// @notice Returns the on-chain key envelope for a consumer and checkpoint.
+    ///         Returns empty values if no envelope has been delivered on-chain.
+    /// @param consumer     The consumer's Ethereum address.
+    /// @param checkpointId The checkpoint to look up.
+    function getKeyEnvelope(
+        address consumer,
+        bytes32 checkpointId
+    ) external view returns (bytes memory wrappedKey, bytes24 nonce, bytes32 senderPublicKey);
+
+    /// @notice Returns true if an on-chain key envelope exists for the consumer
+    ///         and checkpoint.
+    /// @param consumer     The consumer's Ethereum address.
+    /// @param checkpointId The checkpoint to check.
+    function hasKeyEnvelope(
+        address consumer,
+        bytes32 checkpointId
+    ) external view returns (bool);
 }
