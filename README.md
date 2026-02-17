@@ -1,28 +1,17 @@
-<p align="center">
-  <img src="chromia.png" alt="Mindstate" width="400" />
-</p>
+![Mindstate](dithered-lassie.png)
 
-<h1 align="center">Mindstate Contracts</h1>
+# Mindstate Contracts
 
-<p align="center">
-  <strong>Encrypted AI state on-chain. Verifiable checkpoints. Burn-to-redeem access.</strong>
-</p>
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Solidity](https://img.shields.io/badge/Solidity-^0.8.24-363636?logo=solidity)](https://soliditylang.org)
+[![Built with Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C)](https://book.getfoundry.sh)
+[![GitHub stars](https://img.shields.io/github/stars/Mindstate-AI/contracts)](https://github.com/Mindstate-AI/contracts)
 
-<p align="center">
-  <a href="https://mindstate.dev">mindstate.dev</a> &middot;
-  <a href="https://x.com/mindstatecoin">Twitter</a> &middot;
-  <a href="https://t.me/mindstatedev">Telegram</a> &middot;
-  <a href="https://github.com/Mindstate-AI">GitHub</a>
-</p>
-
-<p align="center">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://soliditylang.org"><img src="https://img.shields.io/badge/Solidity-^0.8.24-363636?logo=solidity" alt="Solidity"></a>
-  <a href="https://book.getfoundry.sh"><img src="https://img.shields.io/badge/Built%20with-Foundry-FFDB1C" alt="Built with Foundry"></a>
-  <a href="https://github.com/Mindstate-AI/contracts"><img src="https://img.shields.io/github/stars/Mindstate-AI/contracts" alt="GitHub stars"></a>
-</p>
+Encrypted AI state on-chain. Verifiable checkpoints. Burn-to-redeem access.
 
 ---
+
+[mindstate.dev](https://mindstate.dev) · [Twitter](https://x.com/mindstatecoin) · [Telegram](https://t.me/mindstatedev) · [GitHub](https://github.com/Mindstate-AI)
 
 ## Overview
 
