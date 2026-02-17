@@ -36,6 +36,14 @@ import {FeeCollector} from "../src/launchpad/FeeCollector.sol";
  *           V3_FACTORY        = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24
  *           POSITION_MANAGER  = 0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2
  *
+ *         Base Mainnet deployment (block 42251366):
+ *           MindstateToken (impl)   = 0x69511A29958867A96D28a15b3Ac614D1e8A4c47B
+ *           MindstateFactory        = 0x8c67b8ff38f4F497c8796AC28547FE93D1Ce1C97
+ *           FeeCollector            = 0x19175b230dfFAb8da216Ae29f9596Ac349755D16
+ *           MindstateVault          = 0xC5B2Dc478e75188a454e33E89bc4F768c7079068
+ *           MindstateLaunchFactory  = 0x866B4b99be3847a9ed6Db6ce0a02946B839b735A (v2, sqrtPriceX96 fix)
+ *           Owner                   = 0xCd901D8E51B263Da64E4926b1473Ecb96ccbde6d
+ *
  *         Usage:
  *           forge script script/Deploy.s.sol \
  *             --rpc-url $RPC_URL \

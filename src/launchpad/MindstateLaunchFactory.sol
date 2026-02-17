@@ -40,15 +40,15 @@ contract MindstateLaunchFactory is Ownable2Step, ReentrancyGuard {
 
     // ---- 3-Band Liquidity Distribution (60 / 25 / 15) -----------------------
     //
-    // Band 1 (Graduation):  $3K → $100K mcap, 60% supply, ~5 ETH to clear
-    // Band 2 (Growth):      $100K → $1M mcap, 25% supply
-    // Band 3 (Discovery):   $1M → $100M mcap, 15% supply (thin tail)
+    // Band 1 (Graduation):  $3K  → $100K mcap, 60% supply, ~5 ETH to clear
+    // Band 2 (Growth):      $100K → $5M mcap,  25% supply, wider range = thinner
+    // Band 3 (Discovery):   $5M  → $5B mcap,   15% supply, very thin tail
     //
     // Token price boundaries (WETH/token at $2K ETH):
     //   $3K mcap   → 1.5e-9  WETH/token
     //   $100K mcap → 5e-8    WETH/token
-    //   $1M mcap   → 5e-7    WETH/token
-    //   $100M mcap → 5e-5    WETH/token
+    //   $5M mcap   → 2.5e-6  WETH/token
+    //   $5B mcap   → 2.5e-3  WETH/token
     //
     // Ticks are pre-computed and aligned to tick spacing (200).
     // Sign depends on token ordering — see _seedPool for the flip logic.
@@ -62,24 +62,29 @@ contract MindstateLaunchFactory is Ownable2Step, ReentrancyGuard {
     //   Ticks are positive since tokens/WETH > 1.
 
     /// @notice Band supply splits in basis points (must sum to 10000)
-    uint256 public constant BAND1_BPS = 6000;  // 60% — graduation
-    uint256 public constant BAND2_BPS = 2500;  // 25% — growth
-    uint256 public constant BAND3_BPS = 1500;  // 15% — discovery
+    uint256 public constant BAND1_BPS = 8000;  // 80% — graduation (dense, predictable)
+    uint256 public constant BAND2_BPS = 1000;  // 10% — growth buffer
+    uint256 public constant BAND3_BPS = 1000;  // 10% — discovery (very thin, mcap runs)
 
     /// @notice Tick boundaries (absolute values, aligned to tick spacing 200).
     ///         Applied as positive when WETH is token0, negative when token is token0.
     int24 public constant TICK_BOUND_0 = 203200;  // $3K mcap (cheapest)
     int24 public constant TICK_BOUND_1 = 168200;  // $100K mcap
     int24 public constant TICK_BOUND_2 = 145200;  // $1M mcap
-    int24 public constant TICK_BOUND_3 = 99200;   // $100M mcap (most expensive)
+    int24 public constant TICK_BOUND_3 = 60000;   // $5B mcap (very thin tail)
 
-    /// @notice sqrtPriceX96 for pool initialization at the Band 1 floor ($3K mcap).
-    ///         When WETH is token0: price = tokens/WETH ≈ 6.67e8
-    ///           sqrtPriceX96 = sqrt(6.67e8) * 2^96 ≈ 2.045e21
-    uint160 public constant INIT_SQRT_PRICE_WETH_IS_TOKEN0 = 2045830200901498806034432;
-    ///         When token is token0: price = WETH/token ≈ 1.5e-9
-    ///           sqrtPriceX96 = sqrt(1.5e-9) * 2^96 ≈ 3.068e12
-    uint160 public constant INIT_SQRT_PRICE_TOKEN_IS_TOKEN0 = 3068745301352248;
+    /// @notice sqrtPriceX96 for pool initialization just outside the Band 1 floor.
+    ///         Both tokens have 18 decimals → V3 raw price = human price.
+    ///         Target: ~$3K mcap at $2K ETH, 1B supply → 1 token ≈ 1.5e-9 WETH.
+    ///
+    ///         The init price must place the tick OUTSIDE Band 1 so all liquidity
+    ///         is single-sided (only the Mindstate token, no WETH needed).
+    ///         Using sqrt(price) = 25840 → price = 667,705,600 → tick ≈ ±203,204.
+    ///
+    ///         When WETH is token0: tick ≈ +203,204 (above TICK_BOUND_0 = 203,200)
+    uint160 public constant INIT_SQRT_PRICE_WETH_IS_TOKEN0 = 2047255719368590483417175676682240;
+    ///         When token is token0: tick ≈ -203,204 (below -TICK_BOUND_0 = -203,200)
+    uint160 public constant INIT_SQRT_PRICE_TOKEN_IS_TOKEN0 = 3066105360459146191700617;
 
     // ============ Immutables ============
 
